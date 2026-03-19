@@ -5,23 +5,16 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 登录响应VO
+ * 登录响应，包含 Token 和用户基本信息
  *
- * 作用：登录成功后返回给前端的数据，包含 Token 和用户信息。
- *
- * 前端拿到 token 后，后续每次请求都需要在请求头中携带：
- * Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
- *
- * 服务器通过验证 token 来确认用户身份，不需要每次都重新登录。
+ * 前端保存 token，后续请求在 Header 中携带：Authorization: Bearer <token>
+ * Token 有效期 24 小时，调用 /auth/logout 后立即失效
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class LoginVO {
 
-    // JWT Token，前端需要保存，后续请求时放在请求头中
-    private String token;
-
-    // 用户基本信息，前端用于展示用户名、头像等
-    private UserVO user;
+    private String token; // JWT Token，前端需保存
+    private UserVO user;  // 用户基本信息，避免登录后再请求一次 /user/me
 }

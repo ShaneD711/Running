@@ -1,28 +1,47 @@
 package com.shaned.running.config;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * Spring Security 配置类
+ * Spring Security 配置
  *
- * 作用：向Spring容器注册一个密码加密器（PasswordEncoder）。
- * 注册后，其他类可以通过 @Autowired 注入使用。
- *
- * 为什么单独放一个配置类？
- * - PasswordEncoder 是 Spring Security 提供的接口
- * - BCryptPasswordEncoder 是它的实现，使用 BCrypt 算法加密
- * - 通过 @Bean 注册到容器，方便全局复用，不需要每次 new 一个对象
+ * 配置接口访问权限、Session 策略和过滤器链。
+ * 注册/登录接口无需 Token，其余接口需要携带有效 Token。
  */
 @Configuration
+@EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
 
-    /**
-     * 注册密码加密器
-     * PasswordUtil 中通过 @Autowired 注入这个 Bean 来加密和验证密码
-     */
+    private final JwtAuthFilter jwtAuthFilter;
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            // 前后端分离使用 JWT，不需要 CSRF 防护
+            .csrf(AbstractHttpConfigurer::disable)
+            // 不使用 Session，每次请求通过 Token 独立验证
+            .sessionManagement(session ->
+                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/api/v1/auth/register", "/api/v1/auth/login").permitAll()
+                .anyRequest().authenticated())
+            // JwtAuthFilter 在 Spring Security 默认过滤器之前执行
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();

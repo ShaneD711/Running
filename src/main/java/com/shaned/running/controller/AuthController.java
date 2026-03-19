@@ -6,39 +6,35 @@ import com.shaned.running.dto.RegisterRequest;
 import com.shaned.running.service.UserService;
 import com.shaned.running.vo.LoginVO;
 import com.shaned.running.vo.UserVO;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 认证控制器
+ * 认证接口：注册、登录、退出登录
  *
- * 作用：接收注册、登录相关的HTTP请求，调用Service处理，返回结果。
- * Controller 只负责"接收请求 → 调用Service → 返回结果"，不写业务逻辑。
- *
- * @RestController  = @Controller + @ResponseBody，表示返回JSON数据
- * @RequestMapping  统一设置接口前缀，所有接口都以 /api/v1/auth 开头
+ * POST /api/v1/auth/register  注册，返回用户信息
+ * POST /api/v1/auth/login     登录，返回 Token + 用户信息
+ * POST /api/v1/auth/logout    退出登录，Token 写入 Redis 黑名单立即失效
  */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/auth")
+@RequiredArgsConstructor
 public class AuthController {
 
-    // 注入UserService，调用业务逻辑
-    @Autowired
-    private UserService userService;
+    private final UserService userService;
 
     /**
-     * 用户注册接口
-     *
-     * POST /api/v1/auth/register
-     *
-     * @Valid 触发 RegisterRequest 中的参数校验注解（@NotBlank、@Pattern等）
-     * @RequestBody 将请求体中的JSON自动转换为RegisterRequest对象
+     * 注册
+     * @param request
+     * @return
      */
     @PostMapping("/register")
     public Result<UserVO> register(@Valid @RequestBody RegisterRequest request) {
@@ -47,16 +43,28 @@ public class AuthController {
     }
 
     /**
-     * 用户登录接口
-     *
-     * POST /api/v1/auth/login
-     *
-     * 登录成功返回JWT Token，前端需要保存Token，后续请求放在请求头中：
-     * Authorization: Bearer {token}
+     * 登录
+     * @param request
+     * @return
      */
     @PostMapping("/login")
     public Result<LoginVO> login(@Valid @RequestBody LoginRequest request) {
         LoginVO loginVO = userService.login(request);
         return Result.success("登录成功", loginVO);
+    }
+
+    /**
+     * 退出登录
+     * @param request
+     * @return
+     */
+    // 不传 Token 也返回成功（幂等），Token 失效由 JwtAuthFilter 的黑名单检查保证
+    @PostMapping("/logout")
+    public Result<Void> logout(HttpServletRequest request) {
+        String bearer = request.getHeader("Authorization");
+        if (StringUtils.hasText(bearer) && bearer.startsWith("Bearer ")) {
+            userService.logout(bearer.substring(7));
+        }
+        return Result.success("退出成功", null);
     }
 }
